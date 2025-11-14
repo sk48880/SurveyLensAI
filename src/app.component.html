@@ -1,0 +1,514 @@
+<main class="min-h-screen p-4 sm:p-6 lg:p-8">
+  <div id="tooltip" class="absolute hidden p-2 text-xs bg-slate-800 text-white rounded-md shadow-lg border border-slate-300 pointer-events-none z-[100]"></div>
+  <div class="max-w-7xl mx-auto">
+    <header class="relative mb-8 py-4">
+      <div class="text-center">
+        <div class="inline-flex justify-center items-center gap-4">
+          <img src="https://res.cloudinary.com/dbbjvrvjd/image/upload/v1763109124/b8b2f1d5-b46d-46cb-9c3e-c144d31a38be_l92how.png" alt="SurveyLensAI Insights Logo" class="h-24 w-auto">
+          <h1 class="text-8xl font-bold text-slate-800">SurveyLensAI</h1>
+        </div>
+        <p class="mt-2 text-xl text-slate-600">AI Powered end-to-end insights from open-ended survey responses</p>
+      </div>
+      @if (appState() !== 'upload') {
+        <button (click)="resetApp()" class="absolute top-4 right-0 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors">Start Over</button>
+      }
+    </header>
+
+    <!-- API Key Warning -->
+    @if (!isApiKeyValid()) {
+      <div class="p-4 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-100" role="alert">
+        <span class="font-medium">Warning!</span> Gemini API key is not configured. The application will not function. Please set the API_KEY environment variable.
+      </div>
+    }
+
+    <!-- App Content -->
+    <div class="fade-in">
+      <!-- UPLOAD STATE -->
+      @if (appState() === 'upload') {
+        <div class="max-w-4xl mx-auto pt-12">
+          <div class="text-center bg-white p-10 rounded-xl shadow-lg border border-slate-200">
+            @if (isParsing()) {
+              <div class="flex flex-col items-center justify-center">
+                  <svg class="animate-spin -ml-1 mr-3 h-12 w-12 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <h2 class="mt-4 text-2xl font-semibold text-slate-800">Processing file...</h2>
+                  <p class="mt-2 text-slate-500">Please wait while we read your data.</p>
+              </div>
+            } @else {
+              <svg class="mx-auto h-16 w-16 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25z" />
+              </svg>
+              <h2 class="mt-4 text-2xl font-semibold text-slate-800">Upload your survey data</h2>
+              <p class="mt-2 text-slate-500">Drag and drop a .csv file here or click to select a file.</p>
+              <div class="mt-6">
+                <label for="file-upload" class="cursor-pointer inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+                  Select File
+                </label>
+                <input id="file-upload" name="file-upload" type="file" class="sr-only" (change)="handleFileUpload($event)" accept=".csv">
+              </div>
+            }
+            @if (error()) { <p class="mt-4 text-red-600">{{ error() }}</p> }
+          </div>
+        </div>
+      }
+
+      <!-- MAPPING STATE -->
+      @if (appState() === 'mapping') {
+        <div class="bg-white p-8 rounded-xl shadow-lg border border-slate-200">
+          <h2 class="text-2xl font-semibold text-slate-800">Map your data columns</h2>
+          <p class="mt-2 text-slate-500">Tell us what's in your file so we can analyze it correctly.</p>
+          <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label for="text-column-select" class="block text-sm font-medium text-slate-700">1. Response Text Column (Required)</label>
+              <select id="text-column-select" [value]="mappedTextColumn()" (change)="mappedTextColumn.set($any($event.target).value)" class="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-slate-100 border-slate-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                <option value="" disabled>-- Choose column --</option>
+                @for (header of headers(); track header) { <option [value]="header">{{ header }}</option> }
+              </select>
+            </div>
+            <div>
+              <label for="date-column-select" class="block text-sm font-medium text-slate-700">2. Date Column (Optional)</label>
+              <select id="date-column-select" [value]="mappedDateColumn()" (change)="mappedDateColumn.set($any($event.target).value)" class="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-slate-100 border-slate-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                <option value="">-- No date column --</option>
+                @for (header of headers(); track header) { <option [value]="header">{{ header }}</option> }
+              </select>
+            </div>
+          </div>
+          <div class="mt-6">
+            <h3 class="block text-sm font-medium text-slate-700">3. Dimension Columns (Optional, for filtering)</h3>
+            <div class="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              @for(header of availableDimensions(); track header) {
+                <button (click)="toggleDimension(header)" class="px-3 py-2 text-sm text-left rounded-md transition-colors" [class.bg-indigo-600]="mappedDimensionColumns().includes(header)" [class.text-white]="mappedDimensionColumns().includes(header)" [class.bg-slate-100]="!mappedDimensionColumns().includes(header)" [class.text-slate-700]="!mappedDimensionColumns().includes(header)" [class.hover:bg-slate-200]="!mappedDimensionColumns().includes(header)">
+                  {{ header }}
+                </button>
+              }
+            </div>
+          </div>
+          <div class="mt-8 text-right">
+            <button (click)="startAnalysis()" [disabled]="!mappedTextColumn()" class="px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 disabled:cursor-not-allowed">
+              Start Analysis
+            </button>
+          </div>
+          @if (error()) { <p class="mt-4 text-red-600 text-center">{{ error() }}</p> }
+        </div>
+      }
+
+      <!-- ANALYZING STATE -->
+      @if (appState() === 'analyzing') {
+        <div class="bg-white p-10 rounded-xl shadow-lg border border-slate-200 text-center">
+          <h2 class="text-2xl font-semibold text-slate-800">Analyzing Responses...</h2>
+          <p class="mt-2 text-slate-500">Our AI is processing your data. Please wait.</p>
+          <div class="w-full bg-slate-200 rounded-full h-4 mt-8">
+            <div class="bg-indigo-600 h-4 rounded-full transition-all duration-500" [style.width.%]="analysisProgress()"></div>
+          </div>
+          <p class="mt-2 text-lg font-medium text-indigo-600">{{ analysisProgress() }}%</p>
+        </div>
+      }
+
+      <!-- RESULTS STATE -->
+      @if (appState() === 'results') {
+        <div class="space-y-8">
+          
+          <!-- KPIs & Filters -->
+          <section class="bg-white p-4 rounded-xl shadow border border-slate-200 space-y-4">
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <!-- Total Responses KPI -->
+                  <div class="p-4 bg-slate-50 rounded-lg text-center">
+                      <h4 class="text-sm font-medium text-slate-500 uppercase">Total Responses</h4>
+                      <p class="text-3xl font-bold text-slate-800">{{ totalResponses() }}</p>
+                  </div>
+                  <!-- Sentiment KPIs -->
+                  @let total = sentimentTotal();
+                  @for(sentiment of sentimentCounts(); track sentiment[0]) {
+                      @switch (sentiment[0]) {
+                          @case ('positive') {
+                              <div class="p-4 bg-emerald-50 rounded-lg text-center">
+                                  <h4 class="text-sm font-medium text-emerald-600 uppercase">Positive</h4>
+                                  <p class="text-3xl font-bold text-emerald-800">{{ total > 0 ? ((sentiment[1] / total) * 100).toFixed(0) : 0 }}%</p>
+                              </div>
+                          }
+                          @case ('neutral') {
+                              <div class="p-4 bg-amber-50 rounded-lg text-center">
+                                  <h4 class="text-sm font-medium text-amber-600 uppercase">Neutral</h4>
+                                  <p class="text-3xl font-bold text-amber-800">{{ total > 0 ? ((sentiment[1] / total) * 100).toFixed(0) : 0 }}%</p>
+                              </div>
+                          }
+                          @case ('negative') {
+                              <div class="p-4 bg-red-50 rounded-lg text-center">
+                                  <h4 class="text-sm font-medium text-red-600 uppercase">Negative</h4>
+                                  <p class="text-3xl font-bold text-red-800">{{ total > 0 ? ((sentiment[1] / total) * 100).toFixed(0) : 0 }}%</p>
+                              </div>
+                          }
+                      }
+                  }
+              </div>
+               @if (mappedDimensionColumns().length > 0 || mappedDateColumn()) {
+                <div class="border-t border-slate-200 pt-4 space-y-3">
+                  <h3 class="font-semibold text-slate-800">Filters</h3>
+                  <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+                    @if (mappedDateColumn()) {
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-sm font-medium text-slate-700">Date Range:</span>
+                        <input type="date"
+                          class="p-1 bg-slate-100 border-slate-300 rounded-md text-sm"
+                          [value]="dateToInputFormat(dateFilterStart())"
+                          (change)="updateDateFilterStart($event)"
+                          [min]="dateToInputFormat(minDate())"
+                          [max]="dateToInputFormat(dateFilterEnd() || maxDate())">
+                        <span>-</span>
+                        <input type="date"
+                          class="p-1 bg-slate-100 border-slate-300 rounded-md text-sm"
+                          [value]="dateToInputFormat(dateFilterEnd())"
+                          (change)="updateDateFilterEnd($event)"
+                          [min]="dateToInputFormat(dateFilterStart() || minDate())"
+                          [max]="dateToInputFormat(maxDate())">
+                        <button (click)="resetDateFilter()" title="Reset date filter" class="p-1 text-slate-500 hover:text-slate-800">
+                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M15.323 3.33a.75.75 0 01.245 1.03l-1.25 2.5a.75.75 0 01-1.05.275l-.176-.088a6.965 6.965 0 00-4.092-1.298 6.965 6.965 0 00-4.092 1.298l-.176.088a.75.75 0 01-1.05-.275l-1.25-2.5a.75.75 0 011.295-.755l1.25 2.5a.25.25 0 00.35.092l.176-.088A8.465 8.465 0 0110 4.25c1.5 0 2.898.392 4.118 1.084l.176.088a.25.25 0 00.35-.092l1.25-2.5a.75.75 0 011.03-.245zM4.677 16.67a.75.75 0 01-.245-1.03l1.25-2.5a.75.75 0 011.05-.275l.176.088a6.965 6.965 0 004.092 1.298 6.965 6.965 0 004.092-1.298l.176-.088a.75.75 0 011.05.275l1.25 2.5a.75.75 0 11-1.295.755l-1.25-2.5a.25.25 0 00-.35-.092l-.176-.088A8.465 8.465 0 0110 15.75c-1.5 0-2.898-.392-4.118-1.084l-.176-.088a.25.25 0 00-.35.092l-1.25 2.5a.75.75 0 01-1.03.245z" clip-rule="evenodd" /></svg>
+                        </button>
+                      </div>
+                    }
+                    @for (dim of mappedDimensionColumns(); track dim) {
+                      <div class="flex items-center gap-2">
+                        <label [for]="'filter-' + dim" class="text-sm font-medium text-slate-700">{{ dim }}:</label>
+                        <select [id]="'filter-' + dim" (change)="updateFilter(dim, $event)" class="block w-full min-w-[150px] pl-3 pr-10 py-2 text-base bg-slate-100 border-slate-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                          <option value="all">All</option>
+                          @for (option of availableFilters()[dim]; track option) {
+                            <option [value]="option">{{ option }}</option>
+                          }
+                        </select>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+          </section>
+          
+          <!-- Trend Analysis -->
+          @if (mappedDateColumn()) {
+            <section class="bg-white p-6 rounded-xl shadow border border-slate-200">
+              <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                <h3 class="font-semibold text-lg text-slate-800">Trend Analysis</h3>
+                <div class="flex flex-wrap items-center gap-2">
+                  <select (change)="trendChartPeriod.set($any($event.target).value)" [value]="trendChartPeriod()" class="text-sm p-1 bg-slate-100 border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="day">Daily</option>
+                    <option value="week">Weekly</option>
+                    <option value="month">Monthly</option>
+                  </select>
+                  <select (change)="trendChartGroupBy.set($any($event.target).value)" [value]="trendChartGroupBy()" class="text-sm p-1 bg-slate-100 border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="sentiment">by Sentiment</option>
+                    <option value="intent">by Intent</option>
+                    <option value="topics">by Topic</option>
+                  </select>
+                  <select (change)="trendChartType.set($any($event.target).value)" [value]="trendChartType()" class="text-sm p-1 bg-slate-100 border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="line">Line Chart</option>
+                    <option value="stackedBar">Stacked Bar</option>
+                    <option value="area">Area Chart</option>
+                  </select>
+                </div>
+              </div>
+              <div class="h-64">
+                <svg #trendChart class="w-full h-full"></svg>
+              </div>
+            </section>
+          }
+
+          <!-- Intent & Topic Pie/Bar Charts -->
+          <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-xl shadow border border-slate-200">
+              <h3 class="font-semibold text-lg text-slate-800 mb-4">Intent Distribution</h3>
+              <div class="h-64">
+                <svg #intentChart class="w-full h-full"></svg>
+              </div>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow border border-slate-200">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="font-semibold text-lg text-slate-800">
+                  @if (selectedTopic()) {
+                    Sub-topics for: {{ selectedTopic() }}
+                  } @else {
+                    Topic Distribution
+                  }
+                </h3>
+                @if (selectedTopic()) {
+                  <button (click)="resetTopicView()" class="text-sm text-indigo-600 hover:underline font-medium">
+                    &larr; Back to all topics
+                  </button>
+                }
+              </div>
+               <div class="h-64">
+                <svg #topicChart class="w-full h-full"></svg>
+              </div>
+            </div>
+          </section>
+
+          <!-- Topic & Intent Breakdowns -->
+          <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-xl shadow border border-slate-200">
+              <h3 class="font-semibold text-lg text-slate-800">Topic Breakdown</h3>
+              <div class="mt-4 space-y-2 max-h-80 overflow-y-auto">
+                 @for(topic of topicTree(); track topic.name){
+                    <div>
+                      <div class="flex items-center">
+                         <button (click)="toggleTopicExpansion(topic)" class="text-slate-500 disabled:text-slate-300" [disabled]="topic.subTopics.length === 0">
+                           @if (topic.subTopics.length > 0) {
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 transition-transform" [class.rotate-90]="topic.expanded">
+                                <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+                              </svg>
+                           } @else {
+                              <div class="w-5 h-5"></div>
+                           }
+                         </button>
+                         <button (click)="openVerbatimModal('Topic: ' + topic.name, topic.responses)" class="w-full flex justify-between items-center text-left p-1 rounded-md hover:bg-slate-100">
+                          <span class="text-slate-700">{{ topic.name }}</span>
+                          <span class="font-medium text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full text-sm">{{ topic.count }}</span>
+                         </button>
+                      </div>
+                      @if (topic.expanded) {
+                        <div class="ml-8 mt-1 space-y-1">
+                          @for(subTopic of topic.subTopics; track subTopic.name){
+                            <button (click)="openVerbatimModal('Sub-Topic: ' + subTopic.name, subTopic.responses)" class="w-full flex justify-between items-center text-left p-1 rounded-md hover:bg-slate-100">
+                              <span class="text-slate-500">{{ subTopic.name }}</span>
+                              <span class="font-medium text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full text-xs">{{ subTopic.count }}</span>
+                            </button>
+                          }
+                        </div>
+                      }
+                    </div>
+                 }
+              </div>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow border border-slate-200">
+              <h3 class="font-semibold text-lg text-slate-800">Intent Breakdown</h3>
+              <div class="mt-4 space-y-2  max-h-80 overflow-y-auto">
+                 @for (intent of intentCounts(); track intent[0]) {
+                    @let responses = intentMap().get(intent[0]) || [];
+                    <button (click)="openVerbatimModal('Intent: ' + intent[0], responses)" class="w-full flex justify-between items-center capitalize text-left p-1 rounded-md hover:bg-slate-100">
+                        <span class="text-slate-700">{{ intent[0] }}</span>
+                        <span class="font-medium text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full text-sm">{{ intent[1] }}</span>
+                    </button>
+                 }
+              </div>
+            </div>
+          </section>
+
+          <!-- Enriched Data Table -->
+          <section class="bg-white p-6 rounded-xl shadow border border-slate-200">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="font-semibold text-lg text-slate-800">Analyzed Responses (Showing first 10 of {{ totalResponses() }})</h3>
+              <button (click)="exportToCsv()" [disabled]="filteredAnalysisResults().length === 0" class="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed">
+                Export CSV
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Row</th>
+                    @for (dim of mappedDimensionColumns(); track dim) { <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{{dim}}</th> }
+                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Response</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Sentiment</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Intent</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Topics</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Confidence</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-slate-200">
+                  @for (result of filteredAnalysisResults().slice(0,10); track result.rowId) {
+                    <tr [class.bg-amber-50]="result.analysis && result.analysis.confidence < 65">
+                      <td class="px-4 py-4 whitespace-nowrap text-sm text-slate-500">{{ result.rowId }}</td>
+                      @for (dim of mappedDimensionColumns(); track dim) { <td class="px-4 py-4 whitespace-nowrap text-sm text-slate-500">{{ result[dim] }}</td> }
+                      <td class="px-4 py-4 max-w-sm">
+                        <p class="text-sm text-slate-800 truncate" [title]="result.analysis?.redacted_excerpt || 'No excerpt'">{{ result.analysis?.redacted_excerpt || 'N/A' }}</p>
+                        <p class="text-xs text-slate-500 mt-1 italic">"{{ result.analysis?.explanation }}"</p>
+                      </td>
+                      <td class="px-4 py-4 whitespace-nowrap text-sm">
+                        @if (result.analysis?.sentiment === 'positive') { <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">Positive</span> }
+                        @if (result.analysis?.sentiment === 'neutral') { <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-100 text-amber-800">Neutral</span> }
+                        @if (result.analysis?.sentiment === 'negative') { <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Negative</span> }
+                      </td>
+                      <td class="px-4 py-4 whitespace-nowrap text-sm text-slate-500 capitalize">{{ result.analysis?.intent }}</td>
+                      <td class="px-4 py-4 max-w-xs">
+                        <div class="flex flex-wrap gap-1">
+                          @for (topic of result.analysis?.topics; track topic) {
+                            <span class="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800">{{ topic }}</span>
+                          }
+                        </div>
+                      </td>
+                      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium" [class.text-red-600]="result.analysis && result.analysis.confidence < 65" [class.text-slate-800]="!result.analysis || result.analysis.confidence >= 65">
+                        {{ result.analysis?.confidence }}%
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Executive Summary -->
+          <section class="bg-white rounded-xl shadow-lg border border-slate-200">
+            <div class="p-4 border-b border-slate-200 flex items-center space-x-3">
+              <svg class="w-6 h-6 text-indigo-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20ZM8 12V14H16V12H8ZM8 16V18H13V16H8Z"></path></svg>
+              <h3 class="font-semibold text-lg text-slate-800">Executive Summary</h3>
+            </div>
+            <div class="p-4 space-y-4">
+              <p class="text-sm text-slate-500">Generate a concise, analytical summary of the currently filtered data.</p>
+              <button (click)="onGenerateSummary()" [disabled]="isGeneratingSummary() || totalResponses() === 0" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-slate-400">
+                @if(isGeneratingSummary()){
+                  <span class="flex items-center">
+                    <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generating...
+                  </span>
+                } @else {
+                  <span>Generate Summary</span>
+                }
+              </button>
+              @if (executiveSummary()) {
+                <div class="mt-4 p-4 border border-slate-200 rounded-lg bg-slate-50">
+                  <div class="prose prose-sm max-w-none text-slate-700" [innerHTML]="executiveSummary() | safeHtml"></div>
+                </div>
+              }
+            </div>
+          </section>
+
+          <!-- Chatbot -->
+          <section class="bg-white rounded-xl shadow-lg border border-slate-200">
+            <div class="p-4 border-b border-slate-200 flex items-center space-x-3">
+              <svg class="w-6 h-6 text-indigo-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C17.52 2 22 6.48 22 12C22 17.52 17.52 22 12 22C6.48 22 2 17.52 2 12C2 6.48 6.48 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z"></path></svg>
+              <h3 class="font-semibold text-lg text-slate-800">Chat with your data</h3>
+            </div>
+            <div class="p-4 h-96 overflow-y-auto bg-slate-50 space-y-4">
+              @for (message of chatHistory(); track $index) {
+                <div class="flex" [class.justify-end]="message.sender === 'user'">
+                  <div class="p-3 rounded-lg max-w-lg md:max-w-2xl" [class.bg-indigo-600]="message.sender === 'user'" [class.text-white]="message.sender === 'user'" [class.bg-slate-200]="message.sender === 'bot'" [class.text-slate-800]="message.sender === 'bot'">
+                    <div class="prose prose-sm max-w-none" [innerHTML]="message.text | safeHtml"></div>
+                  </div>
+                </div>
+              }
+              @if (isChatbotLoading()) {
+                <div class="flex">
+                  <div class="p-3 rounded-lg bg-slate-200">
+                    <div class="flex items-center space-x-2">
+                      <div class="w-2 h-2 bg-slate-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                      <div class="w-2 h-2 bg-slate-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                      <div class="w-2 h-2 bg-slate-500 rounded-full animate-bounce"></div>
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+            <form class="p-4 border-t border-slate-200" (submit)="handleChatSubmit($event)">
+              <div class="flex items-center">
+                <input type="text" placeholder="Ask about your data..." class="flex-grow p-2 bg-white border border-slate-300 rounded-l-md focus:ring-indigo-500 focus:border-indigo-500">
+                <button type="submit" [disabled]="isChatbotLoading()" class="p-2 bg-indigo-600 text-white rounded-r-md hover:bg-indigo-700 disabled:bg-slate-400">
+                  <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <!-- Actionable Recommendations -->
+          <section class="bg-white rounded-xl shadow-lg border border-slate-200">
+             <div class="p-4 border-b border-slate-200 flex items-center space-x-3">
+                <svg class="w-6 h-6 text-indigo-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12.0006 18.26L4.94715 22.2082L6.52248 14.2799L0.587891 8.7918L8.61483 7.84006L12.0006 0.5L15.3864 7.84006L23.4133 8.7918L17.4787 14.2799L19.054 22.2082L12.0006 18.26Z"></path></svg>
+                <h3 class="font-semibold text-lg text-slate-800">Generate Actionable Recommendations</h3>
+            </div>
+            <div class="p-4 space-y-4">
+              <p class="text-sm text-slate-500">Select a subset of your data to generate targeted recommendations for improvement.</p>
+              <div class="flex flex-wrap items-center gap-4">
+                <select (change)="recommendationFilterType.set($any($event.target).value); recommendationFilterValue.set('')" class="p-2 bg-slate-100 border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                  <option value="" disabled selected>Select Type...</option>
+                  <option value="sentiment">Sentiment</option>
+                  <option value="intent">Intent</option>
+                </select>
+
+                @if (recommendationFilterType() === 'sentiment') {
+                  <select (change)="recommendationFilterValue.set($any($event.target).value)" class="p-2 bg-slate-100 border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="" disabled selected>Select Sentiment...</option>
+                    @for (sentiment of sentimentCounts(); track sentiment[0]) {
+                      <option [value]="sentiment[0]">{{ sentiment[0] | titlecase }}</option>
+                    }
+                  </select>
+                }
+                 @if (recommendationFilterType() === 'intent') {
+                  <select (change)="recommendationFilterValue.set($any($event.target).value)" class="p-2 bg-slate-100 border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="" disabled selected>Select Intent...</option>
+                     @for (intent of intentCounts(); track intent[0]) {
+                      <option [value]="intent[0]">{{ intent[0] | titlecase }}</option>
+                    }
+                  </select>
+                }
+                <button (click)="onGenerateRecommendations()" [disabled]="isGeneratingRecommendations() || !recommendationFilterValue()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-slate-400">
+                  @if(isGeneratingRecommendations()){
+                    <span class="flex items-center">
+                      <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Generating...
+                    </span>
+                  } @else {
+                    <span>Generate</span>
+                  }
+                </button>
+              </div>
+
+               @if (generatedRecommendations()) {
+                <div class="mt-4 p-4 border border-slate-200 rounded-lg bg-emerald-50 max-h-96 overflow-y-auto">
+                    <div class="prose prose-sm max-w-none text-slate-700" [innerHTML]="generatedRecommendations() | safeHtml"></div>
+                </div>
+              }
+            </div>
+          </section>
+
+        </div>
+      }
+    </div>
+
+    <footer class="text-center mt-12 py-4">
+      <p class="text-sm text-slate-500">AI-generated output — please verify important details.</p>
+    </footer>
+  </div>
+
+  <!-- Verbatim Modal -->
+  @if (isModalOpen()) {
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 fade-in">
+      <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 class="text-xl font-semibold text-slate-800">{{ modalTitle() }}</h2>
+          <button (click)="isModalOpen.set(false)" class="text-slate-400 hover:text-slate-600">
+            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div class="p-6 overflow-y-auto space-y-4 bg-slate-50">
+          @for (response of modalResponses(); track response.rowId) {
+            <div class="border border-slate-200 p-4 rounded-md bg-white">
+              <blockquote class="italic text-slate-700 border-l-4 border-indigo-500 pl-4">
+                "{{ response.analysis?.redacted_excerpt }}"
+              </blockquote>
+              <div class="text-sm text-slate-500 mt-2">
+                <span>Row: {{response.rowId}}</span> &bull; <span>Sentiment: <span class="capitalize">{{response.analysis?.sentiment}}</span></span>
+              </div>
+               @if (response.analysis?.topics && response.analysis?.topics.length > 0) {
+                <div class="mt-2 flex flex-wrap gap-1 items-center">
+                  <span class="text-sm text-slate-500">Topics:</span>
+                  @for (topic of response.analysis.topics; track topic) {
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800">{{ topic }}</span>
+                  }
+                </div>
+              }
+            </div>
+          } @empty {
+            <p class="text-slate-500">No responses found for this category.</p>
+          }
+        </div>
+        <div class="p-4 border-t border-slate-200 text-right bg-slate-50 rounded-b-lg">
+          <button (click)="isModalOpen.set(false)" class="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-md hover:bg-slate-100">Close</button>
+        </div>
+      </div>
+    </div>
+  }
+</main>
