@@ -1,0 +1,5 @@
+{
+  "name": "SurveyLensAI",
+  "description": "An AI-powered tool to analyze survey text responses from CSV files. It provides insights on sentiment, intent, emotion, topics, and includes an interactive chatbot to query the data.",
+  "requestFramePermissions": []
+}
